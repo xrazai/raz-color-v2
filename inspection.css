@@ -1,0 +1,59 @@
+/* Spacious inspection workspace, with a camera independent of export resolution. */
+.app { max-width:none; padding:0 28px; }
+.header { height:66px; }
+.intro { padding:20px 0; display:flex; align-items:baseline; gap:24px; flex-wrap:wrap; }
+.intro h1 { font-size:36px; letter-spacing:-1.2px; margin:0; }
+.intro p { font-size:15px; }
+.workspace { grid-template-columns:270px minmax(0,1fr); gap:16px; }
+.settings { padding:23px 20px; }
+.preview { padding:12px 12px 0; }
+.toolbar { flex-wrap:nowrap; }
+.toolbar #expand { height:34px; font-size:11px; }
+.inspection-tools { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 0; flex-wrap:wrap; }
+.inspection-tools p { margin:0; font-size:10px; color:var(--muted); }
+.zoom-controls { align-items:center; margin-left:auto; }
+.zoom-stepper { display:flex; align-items:center; border:1px solid #cfd2c8; border-radius:4px; background:#fff; overflow:hidden; }
+.zoom-stepper .button { border:0; border-radius:0; min-width:32px; padding:0 9px; font-size:18px; }
+#zoom-percent { width:64px; height:32px; border:0; background:#fff; text-align:center; font:12px ui-monospace,Consolas,monospace; color:var(--ink); }
+#zoom-percent:focus-visible { outline-offset:-3px; }
+.stage { display:block; height:clamp(470px,calc(100dvh - 265px),1400px); min-height:0; margin:0; overflow:hidden; touch-action:none; cursor:grab; background:#eeefe9; border-radius:3px; flex:1 0 auto; }
+.stage:focus-visible { outline:2px solid #84965e; outline-offset:2px; }
+.stage.panning { cursor:grabbing; }
+.canvas-holder { position:absolute; inset:0; display:flex; width:100%; height:100%; gap:2px; overflow:hidden; }
+.canvas-holder figure, .canvas-holder.compare figure { position:relative; flex:1; width:0; height:100%; overflow:hidden; margin:0; display:block; }
+.canvas-holder canvas { position:absolute; left:50%; top:50%; max-width:none; max-height:none; transform-origin:center; object-fit:initial; pointer-events:none; user-select:none; }
+.stage.pixel-detail canvas { image-rendering:pixelated; }
+.canvas-holder figcaption { pointer-events:none; top:12px; left:12px; }
+.statusbar { height:37px; flex-shrink:0; }
+.footer { margin-top:16px; }
+body.inspecting { overflow:hidden; }
+.preview.expanded { position:fixed; inset:12px; z-index:50; border-radius:8px; padding:14px 16px 0; box-shadow:0 18px 80px #0003; }
+.preview.expanded .stage { flex:1 1 0; height:0; min-height:0; aspect-ratio:auto; }
+.preview.expanded .toolbar { flex-shrink:0; }
+.preview.expanded .inspection-tools { flex-shrink:0; }
+@media(max-width:1050px) {
+  .app { padding:0 18px; }
+  .intro { gap:7px; flex-direction:column; }
+  .intro h1 { font-size:32px; }
+  .workspace { grid-template-columns:250px minmax(0,1fr); }
+  .tabs button { padding:10px; font-size:10px; }
+  .toolbar #expand { padding:0 10px; }
+  .toolbar #expand svg { display:none; }
+}
+@media(max-width:760px) {
+  .app { padding:0 16px; }
+  .intro { padding:20px 0; }
+  .intro h1 { font-size:30px; max-width:none; }
+  .intro p { font-size:14px; }
+  .workspace { grid-template-columns:1fr; }
+  .settings { padding:18px; }
+  .toolbar { flex-wrap:wrap; gap:8px; }
+  .tabs { width:auto; flex-basis:auto; flex:1; }
+  .tabs button { padding:10px 7px; font-size:9px; }
+  .toolbar #expand { font-size:10px; }
+  .inspection-tools { gap:8px; padding:10px 0; }
+  .inspection-tools p { width:100%; font-size:10px; }
+  .stage { aspect-ratio:auto; height:60dvh; min-height:340px; }
+  .preview.expanded { inset:0; padding:12px 10px 0; border-radius:0; border:0; }
+  .preview.expanded .stage { min-height:0; }
+}
