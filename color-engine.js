@@ -49,22 +49,26 @@ function ColorEngineFactory() {
     for(let i=0;i<histogram.length;i++) { sum+=histogram[i]; if(sum>=weight/2){median=i/8191;break;} }
     return {lightness,median,uniform:max-min<.00001};
   }
-  function makeLut(model,hex) {
+  function makeLut(model,hex,options={}) {
     const parsed=parseHex(hex); if(!parsed) throw Error('HEX inválido.');
-    const [L,a,b]=toLab(...parsed.rgb), lut=new Uint8ClampedArray(8192*3);
-    const anchor=model.uniform ? L : clamp(L,.08,.97);
+    const [L,sourceA,sourceB]=toLab(...parsed.rgb), lut=new Uint8ClampedArray(8192*3);
+    const texture=clamp(options.texture??1,0,2),saturation=clamp(options.saturation??1,0,2);
+    const angle=clamp(options.hue??0,-180,180)*Math.PI/180,exposure=2**(clamp(options.exposure??0,-2,2)/3);
+    const a=(sourceA*Math.cos(angle)-sourceB*Math.sin(angle))*saturation;
+    const b=(sourceA*Math.sin(angle)+sourceB*Math.cos(angle))*saturation;
+    const anchor=model.uniform||texture===0 ? L : clamp(L,.08,.97);
     const contrast=clamp(anchor/Math.max(model.median,.01),.45,1.25);
     for(let i=0;i<8192;i++) {
-      if(model.uniform) { lut.set(parsed.rgb,i*3); continue; }
-      const delta=(i/8191-model.median)*contrast;
+      if(model.uniform) { lut.set(mappedRgb(clamp(L*exposure),a*exposure,b*exposure),i*3); continue; }
+      const delta=(i/8191-model.median)*contrast*texture;
       const room=delta<0 ? anchor : 1-anchor;
       const next=anchor+Math.sign(delta)*room*(-Math.expm1(-Math.abs(delta)/Math.max(room,.00001)));
-      lut.set(mappedRgb(next,a,b),i*3);
+      lut.set(mappedRgb(clamp(next*exposure),a*exposure,b*exposure),i*3);
     }
     return lut;
   }
-  function recolor(source,model,hex) {
-    const lut=makeLut(model,hex), out=new Uint8ClampedArray(source.length);
+  function recolor(source,model,hex,options={}) {
+    const lut=makeLut(model,hex,options), out=new Uint8ClampedArray(source.length);
     for(let p=0,i=0;i<source.length;p++,i+=4) {
       const j=Math.round(clamp(model.lightness[p])*8191)*3;
       out[i]=lut[j]; out[i+1]=lut[j+1]; out[i+2]=lut[j+2]; out[i+3]=source[i+3];

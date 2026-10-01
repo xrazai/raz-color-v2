@@ -7,28 +7,20 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23DDF064'/%3E%3Ctext x='9' y='24' font-size='28' font-family='Georgia'%3Er%3C/text%3E%3C/svg%3E">
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="inspection.css">
-  <script src="color-engine.js" defer></script><script src="sample.js" defer></script><script src="viewer.js" defer></script><script src="app.js" defer></script>
+  <link rel="stylesheet" href="batch.css">
+  <script src="color-engine.js" defer></script><script src="sample.js" defer></script><script src="viewer.js" defer></script><script src="batch-model.js" defer></script><script src="zip-store.js" defer></script><script src="studio.js" defer></script>
 </head>
 <body>
   <div class="app">
-    <header class="header"><a class="wordmark" href="./index.html" aria-label="Raz cores, início">raz <span>/</span> cores</a><span class="descriptor">Estúdio de cor</span><button id="export" class="button export" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M5 16v5h14v-5"/></svg>Exportar PNG</button></header>
+    <header class="header"><a class="wordmark" href="./index.html" aria-label="Raz cores, início">raz <span>/</span> cores</a><span class="descriptor">Estúdio de cor</span><a class="upscale-link" href="upscale.html" target="_blank" rel="noopener">Upscale IA ↗</a><button id="export-all" class="button export" disabled>Exportar todas (1)</button></header>
     <main>
       <div class="intro"><h1>A mesma trama. Outra cor.</h1><p>Explore novas cores sem perder a essência do tecido.</p></div>
       <div class="workspace">
         <aside class="settings" aria-label="Configurações do tecido">
           <section class="source-section"><h2><span>01</span>Tecido original</h2><div class="source-info"><img id="thumbnail" alt="Miniatura do tecido original"><div class="source-details"><p id="filename" title="Viscolinho">Viscolinho</p><button id="upload" class="button">Trocar imagem</button></div></div><input type="file" id="file" accept="image/png,image/jpeg,image/webp" hidden><p class="hint">PNG, JPG ou WebP · até 40 MB<br>Ou arraste sua imagem para cá.</p></section>
-          <section class="color-section"><h2><span>02</span>Cor de destino</h2><div id="color-preview" class="color-preview" aria-label="Amostra da cor de destino"></div>
-            <form id="color-form" novalidate><div class="hex-row"><label for="hex">HEX</label><input id="hex" name="hex" value="#687B62" maxlength="7" spellcheck="false" autocomplete="off" aria-describedby="hex-error" aria-label="Cor de destino em HEX"></div><p id="hex-error" class="error" role="alert"></p>
-            <div class="palette" aria-label="Cores sugeridas">
-              <button type="button" class="swatch" style="--swatch:#687B62" data-hex="#687B62" title="Sálvia · #687B62" aria-label="Sálvia, #687B62" aria-pressed="true"></button>
-              <button type="button" class="swatch" style="--swatch:#BA7C63" data-hex="#BA7C63" title="Terracota · #BA7C63" aria-label="Terracota, #BA7C63" aria-pressed="false"></button>
-              <button type="button" class="swatch" style="--swatch:#304257" data-hex="#304257" title="Marinho · #304257" aria-label="Marinho, #304257" aria-pressed="false"></button>
-              <button type="button" class="swatch" style="--swatch:#E4DECE" data-hex="#E4DECE" title="Marfim · #E4DECE" aria-label="Marfim, #E4DECE" aria-pressed="false"></button>
-              <button type="button" class="swatch" style="--swatch:#783F4A" data-hex="#783F4A" title="Vinho · #783F4A" aria-label="Vinho, #783F4A" aria-pressed="false"></button>
-              <button type="button" class="swatch" style="--swatch:#3F4241" data-hex="#3F4241" title="Grafite · #3F4241" aria-label="Grafite, #3F4241" aria-pressed="false"></button>
-            </div><button id="apply" class="button primary" type="submit" disabled>Aplicar cor<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h16m-6-6 6 6-6 6"/></svg></button></form>
-            <p id="extreme-note" class="hint" hidden>Nos extremos branco e preto, uma pequena margem de luz mantém a trama visível.</p>
-          </section>
+          <div class="name-field"><label for="fabric-name">Nome do tecido</label><input id="fabric-name" maxlength="80" placeholder="Ex.: Anarruga" autocomplete="off"><p class="hint">Um nome para todas as versões.</p></div>
+          <section class="batch-section"><h2><span>02</span>Paleta em lote</h2><form id="batch-form" novalidate><label for="hex-list">Cole sua lista de HEX</label><textarea id="hex-list" rows="4" spellcheck="false" aria-describedby="list-help list-error" placeholder="#687B62&#10;#BA7C63&#10;#304257"></textarea><p id="list-help" class="hint">Separe por linha, espaço ou vírgula. Até 100 versões.</p><p id="list-error" class="error" role="alert"></p><button id="add-colors" type="submit" class="button primary">Adicionar cores</button></form></section>
+          <section class="global-section"><h2><span>03</span>Textura global</h2><div class="range-label"><label for="texture">Intensidade da trama</label><output id="texture-value" for="texture">100%</output></div><input id="texture" type="range" min="0" max="200" step="1" value="100"><p class="hint">Aplica a todas as versões, mantendo os ajustes individuais.</p><button id="texture-reset" class="text-button">Restaurar 100%</button></section>
           <p class="privacy"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="10" width="12" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 4v3"/></svg>Sua imagem fica no seu dispositivo.</p>
         </aside>
         <section class="preview" aria-label="Prévia do tecido" aria-busy="true">
@@ -36,13 +28,18 @@
           <div class="inspection-tools"><p id="zoom-help">Role para ampliar · arraste para explorar</p><div class="zoom-controls"><button id="fit" class="button" aria-pressed="true">Ajustar</button><button id="actual" class="button" aria-pressed="false">1:1</button><div class="zoom-stepper"><button id="zoom-out" class="button" aria-label="Diminuir zoom">−</button><input id="zoom-percent" value="100%" aria-label="Percentual de zoom" inputmode="decimal" autocomplete="off" spellcheck="false"><button id="zoom-in" class="button" aria-label="Aumentar zoom">+</button></div></div></div>
           <div id="stage" class="stage" tabindex="0" role="region" aria-label="Inspeção do tecido" aria-describedby="zoom-help"><div id="canvas-holder" class="canvas-holder"><figure id="original-figure" hidden><figcaption>Original</figcaption><canvas id="original" aria-label="Imagem original"></canvas></figure><figure id="result-figure"><figcaption id="result-caption">Cor aplicada · #687B62</figcaption><canvas id="result" aria-label="Imagem com a cor aplicada"></canvas></figure></div><div id="loading" class="loading"><span class="spinner"></span><span id="loading-text">Preparando a trama…</span></div></div>
           <div class="statusbar"><span id="status" role="status" aria-live="polite">Preparando imagem…</span><span id="dimensions">—</span></div>
+          <div class="variants"><div class="variants-heading"><h2>Suas versões</h2><span id="variant-count">1 versão</span></div><div id="variant-list" aria-label="Versões do tecido"></div></div>
         </section>
+        <aside class="individual" aria-label="Ajustes individuais da versão selecionada"><div class="inspector-heading"><h2 id="individual-title">Versão 01</h2><span>Só esta imagem</span></div><div id="color-preview" class="color-preview" aria-label="Amostra da cor de destino"></div><form id="color-form" novalidate><div class="hex-row"><label for="hex">HEX</label><input id="hex" value="#687B62" maxlength="7" spellcheck="false" autocomplete="off" aria-describedby="hex-error" aria-label="Cor de destino em HEX"></div><p id="hex-error" class="error" role="alert"></p><button id="apply" class="button" type="submit">Atualizar HEX</button></form>
+          <div class="adjustments"><div class="range-label"><label for="exposure">Exposição</label><output id="exposure-value" for="exposure">0.00 EV</output></div><input id="exposure" type="range" min="-2" max="2" step="0.05" value="0"><div class="range-label"><label for="saturation">Saturação</label><output id="saturation-value" for="saturation">100%</output></div><input id="saturation" type="range" min="0" max="200" step="1" value="100"><div class="range-label"><label for="hue">Hue</label><output id="hue-value" for="hue">0°</output></div><input id="hue" type="range" min="-180" max="180" step="1" value="0"><button id="reset-adjustments" class="text-button">Restaurar ajustes desta versão</button></div>
+          <p id="extreme-note" class="hint" hidden>Nos extremos branco e preto, uma pequena margem de luz mantém a trama visível.</p><div class="individual-export"><span id="export-filename">Tecido_01.png</span><button id="export" class="button primary" disabled>Exportar esta versão</button><button id="remove-variant" class="text-button">Remover versão</button></div>
+        </aside>
       </div>
       <footer class="footer"><p>O HEX define a cor-base. Luz e textura criam variações naturais.</p><p>A recoloração é aplicada à imagem inteira.</p></footer>
     </main>
   </div>
   <div id="drop-overlay" class="drop-overlay" hidden><div>Solte sua próxima cor aqui.<small>Envie uma foto do tecido para começar.</small></div></div>
   <div id="toast" class="toast" role="alert" hidden></div>
-  <dialog id="export-dialog" aria-labelledby="export-title"><div class="export-heading"><h2 id="export-title">Seu tecido está pronto.</h2><button id="close-export" class="button" aria-label="Fechar exportação">Fechar</button></div><p id="export-detail"></p><img id="export-image" alt="Prévia do PNG pronto para baixar"><a id="download-png" class="button primary" download>Baixar PNG</a><p class="hint">Se o download não iniciar, abra esta página no Chrome ou Edge.</p></dialog>
+  <dialog id="export-dialog" aria-labelledby="export-title"><div class="export-heading"><h2 id="export-title">Seu tecido está pronto.</h2><button id="close-export" class="button" aria-label="Fechar exportação">Fechar</button></div><p id="export-detail" role="status" aria-live="polite"></p><progress id="export-progress" aria-label="Progresso da exportação" hidden></progress><img id="export-image" alt="Prévia do PNG pronto para baixar"><ul id="export-files" aria-label="Arquivos do lote"></ul><a id="download-png" class="button primary" download>Baixar PNG</a><p class="hint">O arquivo é preparado no seu dispositivo, na resolução original.</p></dialog>
 </body>
 </html>
