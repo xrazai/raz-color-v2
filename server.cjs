@@ -22,6 +22,7 @@ function createServer(options={}){
         if(req.headers.origin&&req.headers.origin!==`http://${host}`)throw new ApiError(403,'Origem não permitida.');
         if(req.headers['sec-fetch-site']==='cross-site')throw new ApiError(403,'Origem não permitida.');
         if(pathname==='/api/ai/models'&&req.method==='GET'){json(res,200,await router.models());return;}
+        if(pathname==='/api/ai/pricing'&&req.method==='GET'){json(res,200,await router.pricing(url.searchParams.get('model'),url.searchParams.get('resolution')));return;}
         if(pathname==='/api/ai/upscale'&&req.method==='POST'){
           if(req.headers.origin!==`http://${host}`||req.headers['x-raz-request']!=='image-upscale')throw new ApiError(403,'Abra o estúdio pelo servidor local para processar imagens.');
           if(!req.headers['content-type']?.startsWith('application/json'))throw new ApiError(415,'Use JSON para enviar a imagem.');

@@ -7,6 +7,29 @@ class ApiError extends Error {
 }
 const resolutions=p=>['2K','4K'].filter(value=>p?.resolution?.values?.includes(value));
 const acceptsReference=p=>p?.input_references?.max>=1&&p.input_references.min<=1;
+const acceptsPng=p=>p?.output_format?.values?.includes('png');
+const compatibleEndpoint=e=>Boolean(e.provider_tag)&&acceptsReference(e.supported_parameters)&&acceptsPng(e.supported_parameters);
+const endpointPath=model=>`/images/models/${model.split('/').map(encodeURIComponent).join('/')}/endpoints`;
+
+function estimatePrice(pricing,resolution){
+  const relevant=pricing.filter(p=>['input_image','input_reference','output_image'].includes(p.billable));
+  if(!relevant.some(p=>p.billable==='output_image'))return {kind:'unknown'};
+  if(relevant.some(p=>p.unit!=='image'))return {kind:'variable'};
+  const inputs=relevant.filter(p=>p.billable!=='output_image');
+  if(inputs.some(p=>p.variant))return {kind:'unknown'};
+  const output=relevant.filter(p=>p.billable==='output_image');
+  const tier=resolution.toLowerCase();
+  let candidates=output.filter(p=>p.variant?.toLowerCase()===tier||p.variant?.toLowerCase().endsWith('_'+tier));
+  if(!candidates.length){
+    // A base tariff is not evidence of a missing 4K tariff in a tiered price list.
+    if(output.some(p=>/(?:^|_)\d+k$/i.test(p.variant||'')))return {kind:'unknown'};
+    candidates=output;
+  }
+  const inputCost=inputs.reduce((sum,p)=>sum+p.cost_usd,0);
+  const totals=candidates.map(p=>Number((p.cost_usd+inputCost).toFixed(10)));
+  const min=Math.min(...totals),max=Math.max(...totals);
+  return {kind:min===max?'fixed':'range',min,max};
+}
 
 function inputImage(value){
   if(typeof value!=='string')throw new ApiError(400,'Envie uma imagem PNG preparada pelo estúdio.');
@@ -26,7 +49,7 @@ function outputImage(result){
   if(typeof value!=='string'||value.length>140*1024*1024||!/^[A-Za-z0-9+/]+={0,2}$/.test(value))throw new ApiError(502,'O modelo não retornou uma imagem válida.');
   const bytes=Buffer.from(value,'base64');
   const type=bytes.subarray(0,8).toString('hex')==='89504e470d0a1a0a'?'image/png':bytes[0]===255&&bytes[1]===216&&bytes[2]===255?'image/jpeg':bytes.toString('ascii',0,4)==='RIFF'&&bytes.toString('ascii',8,12)==='WEBP'?'image/webp':null;
-  if(!type)throw new ApiError(502,'O modelo retornou um formato não compatível. Use um modelo de imagens PNG, JPG ou WebP.');
+  if(type!=='image/png')throw new ApiError(502,'O provedor não retornou PNG, apesar do formato solicitado. Nenhuma conversão ou nova geração foi realizada.');
   return `data:${type};base64,${value}`;
 }
 
@@ -61,13 +84,33 @@ function createOpenRouter({apiKey=process.env.OPENROUTER_API_KEY||'',fetchImpl=f
   async function models(){
     if(!apiKey)return {configured:false,models:[]};
     if(cache&&Date.now()<expires)return {configured:true,models:cache};
-    if(!pending)pending=request('/images/models').then(data=>{
+    if(!pending)pending=request('/images/models').then(async data=>{
       if(!Array.isArray(data.data))throw new ApiError(502,'O catálogo do OpenRouter está indisponível.');
-      cache=data.data.filter(m=>m.architecture?.input_modalities?.includes('image')&&m.architecture?.output_modalities?.includes('image')&&acceptsReference(m.supported_parameters)&&resolutions(m.supported_parameters).length)
-        .map(m=>({id:m.id,name:m.name||m.id,resolutions:resolutions(m.supported_parameters)})).sort((a,b)=>a.name.localeCompare(b.name));
+      const candidates=data.data.filter(m=>m.architecture?.input_modalities?.includes('image')&&m.architecture?.output_modalities?.includes('image')&&acceptsReference(m.supported_parameters)&&acceptsPng(m.supported_parameters)&&resolutions(m.supported_parameters).length);
+      const verified=await Promise.all(candidates.map(async m=>{
+        const details=await request(endpointPath(m.id));
+        const endpoints=(details.endpoints||[]).filter(compatibleEndpoint);
+        return {id:m.id,name:m.name||m.id,resolutions:['2K','4K'].filter(r=>endpoints.some(e=>resolutions(e.supported_parameters).includes(r)))};
+      }));
+      cache=verified.filter(m=>m.resolutions.length).sort((a,b)=>a.name.localeCompare(b.name));
       expires=Date.now()+300000;return {configured:true,models:cache};
     }).finally(()=>{pending=null;});
     return pending;
+  }
+  async function endpointFor(model,resolution,signal){
+    if(!apiKey)throw new ApiError(503,'Configure OPENROUTER_API_KEY e reinicie o servidor local.');
+    const catalog=await models();
+    if(!catalog.models.some(m=>m.id===model&&m.resolutions.includes(resolution)))throw new ApiError(400,'Esse modelo não suporta saída PNG com imagem de referência na resolução escolhida. Atualize a lista.');
+    const details=await request(endpointPath(model),{signal});
+    const endpoint=details.endpoints?.find(e=>compatibleEndpoint(e)&&resolutions(e.supported_parameters).includes(resolution));
+    if(!endpoint)throw new ApiError(400,'Nenhum provedor deste modelo aceita saída PNG com imagem de referência nessa resolução. Escolha outro modelo.');
+    return endpoint;
+  }
+  async function pricing(model,resolution){
+    const endpoint=await endpointFor(model,resolution);
+    const lines=(endpoint.pricing||[]).filter(p=>typeof p.cost_usd==='number'&&Number.isFinite(p.cost_usd)&&p.cost_usd>=0)
+      .map(({billable,unit,cost_usd,variant})=>({billable,unit,cost_usd,...(variant?{variant}:{})}));
+    return {model,resolution,provider:endpoint.provider_tag||endpoint.provider_name||'',pricing:lines,estimate:estimatePrice(lines,resolution)};
   }
   async function upscale(data,signal){
     if(!apiKey)throw new ApiError(503,'Configure OPENROUTER_API_KEY e reinicie o servidor local.');
@@ -76,18 +119,15 @@ function createOpenRouter({apiKey=process.env.OPENROUTER_API_KEY||'',fetchImpl=f
     const {width,height}=inputImage(data.image);
     busy=true;
     try{
-      const catalog=await models();
-      if(!catalog.models.some(m=>m.id===data.model&&m.resolutions.includes(data.resolution)))throw new ApiError(400,'Esse modelo não suporta imagem de referência e a resolução escolhida. Atualize a lista.');
-      const details=await request(`/images/models/${data.model.split('/').map(encodeURIComponent).join('/')}/endpoints`,{signal});
-      const endpoint=details.endpoints?.find(e=>acceptsReference(e.supported_parameters)&&resolutions(e.supported_parameters).includes(data.resolution));
-      if(!endpoint)throw new ApiError(400,'Nenhum provedor deste modelo aceita imagem de referência nessa resolução. Escolha outro modelo.');
+      const endpoint=await endpointFor(data.model,data.resolution,signal);
       const ratios=endpoint.supported_parameters.aspect_ratio?.values||[];
       const supportedRatios=ratios.filter(r=>/^\d+(\.\d+)?:\d+(\.\d+)?$/.test(r));
       const distance=r=>{const [w,h]=r.split(':').map(Number);return Math.abs(Math.log((w/h)/(width/height)));};
       const aspect=ratios.includes('auto')?'auto':supportedRatios.sort((a,b)=>distance(a)-distance(b))[0];
       const body={model:data.model,resolution:data.resolution,
-        prompt:'Restore and upscale the supplied image. Preserve its composition, subject, textures, fine patterns, colors, lighting and proportions as faithfully as possible. Improve clarity conservatively. Do not redesign, stylize, recolor, add objects, text or new patterns. Return only the enhanced image.',
+        prompt:`Preserve all aspects of the original image. Your goal is simply to upscale the image to ${data.resolution} resolution. Do not alter the colors, lighting, or texture.`,
         input_references:[{type:'image_url',image_url:{url:data.image}}],
+        output_format:'png',
         ...(aspect?{aspect_ratio:aspect}:{}),
         ...(endpoint.provider_tag?{provider:{only:[endpoint.provider_tag],allow_fallbacks:false}}:{provider:{allow_fallbacks:false}}),
       };
@@ -95,6 +135,6 @@ function createOpenRouter({apiKey=process.env.OPENROUTER_API_KEY||'',fetchImpl=f
       return {image:outputImage(result),model:data.model,resolution:data.resolution,cost:typeof result.usage?.cost==='number'&&Number.isFinite(result.usage.cost)?result.usage.cost:null};
     }finally{busy=false;}
   }
-  return {models,upscale};
+  return {models,pricing,upscale};
 }
 module.exports={createOpenRouter,ApiError};

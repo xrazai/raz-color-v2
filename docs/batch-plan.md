@@ -1,5 +1,7 @@
 # Paleta de tecidos em lote
 
+> Plano histórico dos lotes. O [guia atual](guia-de-uso.md) inclui também a tela separada de IA e suas condições de funcionamento.
+
 Uma imagem de origem gera uma lista ordenada de variantes HEX. Cada variante tem exposição (-2 a +2 EV), saturação (0–200%) e hue (-180–180°) independentes; textura (0–200%) é compartilhada. Alterar textura mantém os ajustes individuais. Selecionar uma variante abre seus controles e a inspeção já existente, preservando o zoom.
 
 Nome do tecido compartilhado; exportação individual e ZIP de todas as variantes usam Nome_01.png, Nome_02.png etc. Exportação sempre usa a imagem original, parâmetros atuais e resolução completa. Lista aceita espaços, vírgulas, ponto e vírgula e quebras de linha. Validação atômica: entrada inválida não modifica a lista. Máximo 100 variantes; duplicatas permitidas para tratamentos diferentes. Adicionar não sobrescreve variantes; remoção renumera a lista.

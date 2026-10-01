@@ -1,5 +1,36 @@
 # Raz / cores
 
+## Documentação do projeto
+
+| Guia | Conteúdo |
+| --- | --- |
+| [Instalação e uso](docs/guia-de-uso.md) | Configuração no Windows, recoloração, lotes, zoom, upscale e solução de problemas |
+| [Arquitetura e manutenção](docs/arquitetura.md) | Mapa de arquivos, processamento, segurança e roteiro de testes |
+| [OpenRouter e API local](docs/openrouter.md) | Filtro PNG, prompts exatos, preços, rotas, erros e cancelamento |
+
+Os guias descrevem o comportamento atual. Os demais documentos em `docs/` e as capturas em `design/` registram etapas anteriores.
+
+## Início rápido
+
+Para usar o servidor, tenha Node.js 22 ou superior e execute na raiz do projeto:
+
+```powershell
+node server.cjs
+```
+
+Abra [Estúdio de cores](http://127.0.0.1:4173/) ou [Upscale IA](http://127.0.0.1:4173/upscale.html). A IA requer `OPENROUTER_API_KEY` no ambiente do servidor. Não há etapa de build ou `npm install`.
+
+Para escolher a porta 4174:
+
+```powershell
+$env:PORT = '4174'
+node server.cjs
+```
+
+Use o endereço exibido no terminal. Portas diferentes podem servir processos e versões diferentes.
+
+## Estúdio de cores
+
 Para recolorir tecidos, abra `index.html` no Chrome ou Edge. A recoloração não precisa instalar dependências, enviar imagens a servidores ou configurar chaves.
 
 Opcionalmente, execute `node server.cjs` e abra http://127.0.0.1:4173.
@@ -28,11 +59,13 @@ Acesse **Upscale IA ↗** no cabeçalho ou abra http://127.0.0.1:4173/upscale.ht
 Configure a variável de ambiente `OPENROUTER_API_KEY` no Windows e inicie/reinicie o servidor em um terminal que tenha recebido essa variável. A chave é lida apenas pelo servidor, nunca enviada ao navegador nem gravada nos arquivos. Se o terminal estava aberto antes de configurar a variável, abra outro terminal. Nenhuma dependência adicional é necessária.
 
 1. Envie uma imagem PNG, JPG ou WebP. A resolução original em pixels, a quantidade de pixels e o tamanho do arquivo aparecem abaixo do upload.
-2. Escolha um modelo. O catálogo é consultado no OpenRouter e filtrado por entrada e saída de imagem, referência única e suporte a 2K ou 4K. Somente as resoluções suportadas ficam habilitadas.
+2. Escolha um modelo. O catálogo é consultado no OpenRouter e filtrado por entrada e saída de imagem, referência única e suporte a 2K ou 4K. Somente as resoluções suportadas ficam habilitadas. O preço é consultado ao trocar o modelo ou a resolução: valor por processamento com uma entrada e uma saída quando as tarifas permitem, faixa de preços quando há modalidades diferentes, ou valores por token/megapixel para cobrança variável. Uma tarifa de 4K ausente não é substituída pelo preço de 2K. A consulta não gera imagens nem consome créditos de geração.
 3. Clique em **Processar com IA**. Essa ação envia a imagem ao OpenRouter e usa seus créditos. O upload e a consulta de modelos não iniciam geração. O servidor também confere as capacidades do provedor antes de gerar.
-4. Compare original e resultado e clique em **Baixar resultado**. A resolução efetivamente recebida e o custo retornado pela API, quando disponível, aparecem na tela. O original é preservado. O resultado é baixado no formato retornado pelo modelo (PNG, JPG ou WebP).
+4. Compare original e resultado e clique em **Baixar PNG**. O botão aparece desde o início, mas só fica habilitado quando há resultado disponível e nenhum processamento está em andamento. A resolução efetivamente recebida e o custo retornado pela API, quando disponível, aparecem na tela. O original é preservado. A lista inclui apenas modelos com provedor selecionável que aceite referência, a resolução escolhida e controle explícito de saída PNG no mesmo endpoint. Solicitamos sempre PNG e preservamos os bytes recebidos, sem conversão do resultado. Se o provedor devolver outro formato, o aplicativo informa o erro e não repete a geração automaticamente.
 
-2K e 4K são faixas de resolução do modelo, não fatores de ampliação. A proporção usa `auto` quando disponível; caso contrário, a proporção suportada mais próxima. A IA pode modificar detalhes, texturas, cores ou transparência. O modelo pode retornar dimensões diferentes das esperadas: confira os pixels exibidos. O processamento usa uma instrução conservadora de restauração, sem recoloração.
+Cada prévia tem zoom independente: **Ajustar**, **1:1**, **− / +** e percentual editável até 800%. Use a roda do mouse para ampliar, arraste para mover e use dois dedos em telas touch. Duplo clique alterna entre 1:1 e ajuste. Com a prévia em foco, **+ / −**, **0**, **1** e as setas controlam a inspeção. 1:1 usa os pixels reais de cada imagem, mesmo quando as resoluções são diferentes. O zoom não altera o arquivo enviado à IA nem os pixels do download.
+
+2K e 4K são faixas de resolução do modelo, não fatores de ampliação. A proporção usa `auto` quando disponível; caso contrário, a proporção suportada mais próxima. A IA pode modificar detalhes, texturas, cores ou transparência. O modelo pode retornar dimensões diferentes das esperadas: confira os pixels exibidos. O prompt pede apenas ampliação e preservação de cor, iluminação e textura; os textos exatos estão no [guia do OpenRouter](docs/openrouter.md).
 
 Limites de entrada: 40 MB, 24 megapixels e 16.384 px por lado. O envio é convertido localmente para PNG, sem redimensionamento; se esse PNG exceder 40 MB, o processamento é bloqueado. Uma geração por vez, prazo de até 5 minutos no provedor, sem repetição automática de chamadas pagas. Cancelar interrompe a espera e a conexão; confira sua atividade no OpenRouter se a geração já tiver sido concluída. Atualizar ou fechar a página descarta a sessão local.
 

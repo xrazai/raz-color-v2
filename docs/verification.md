@@ -1,5 +1,7 @@
 # Verificação — 01/10/2026
 
+> Registro histórico da versão inicial e primeira etapa de inspeção. Referências a `app.js`, contagens de testes e limitações abaixo pertencem àquela etapa. Consulte o [roteiro atual](arquitetura.md).
+
 ## Atualização de inspeção
 
 Zoom por percentual confirmado com Enter em 200% e 150%; botões de 100% → 125% → 100%; roda do mouse até o limite de 800%; arraste com deslocamento observado de 160 × 100 px. Na comparação, os dois canvases mantiveram transformações idênticas. Ajustar reenquadrou as imagens; Esc restaurou a interface e o foco. Inspeção expandida verificada no desktop e em 390 × 844, sem erros no console. Pinça touch implementada, mas gesto multitoque não foi exercitado pela automação. Capturas: `design/inspection.jpg` e `design/inspection-mobile.jpg`. Dimensões internas dos canvases permaneceram 1254 × 1254; o zoom usa transformações CSS. Seis testes existentes do motor continuam passando.

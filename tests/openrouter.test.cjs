@@ -5,7 +5,7 @@ const {createServer}=require('../server.cjs');
 
 const png=fs.readFileSync(require('node:path').join(__dirname,'fixtures/tecido-alpha.png'));
 const image=`data:image/png;base64,${png.toString('base64')}`;
-const capabilities={resolution:{type:'enum',values:['2K','4K']},input_references:{type:'range',min:0,max:1},aspect_ratio:{type:'enum',values:['auto','1:1']}};
+const capabilities={output_format:{type:'enum',values:['png','webp']},resolution:{type:'enum',values:['2K','4K']},input_references:{type:'range',min:0,max:1},aspect_ratio:{type:'enum',values:['auto','1:1']}};
 const model={id:'test/fabric',name:'Fabric',architecture:{input_modalities:['text','image'],output_modalities:['image']},supported_parameters:capabilities};
 const json=value=>new Response(JSON.stringify(value),{headers:{'Content-Type':'application/json'}});
 async function start(t,options={}){
@@ -47,6 +47,7 @@ test('generation forwards a reference, supported resolution and server-side cred
   assert.equal(generation.init.headers.Authorization,'Bearer private-test-key');
   const request=JSON.parse(generation.init.body);
   assert.equal(request.resolution,'4K');
+  assert.equal(request.output_format,'png');
   assert.deepEqual(request.input_references,[{type:'image_url',image_url:{url:image}}]);
   assert.deepEqual(request.provider,{only:['test-provider'],allow_fallbacks:false});
   assert.equal(request.aspect_ratio,'auto');
@@ -59,6 +60,43 @@ test('invalid inputs cannot cause a paid generation',async t=>{
     assert.equal((await post(body)).status,400);
   }
   assert.equal(calls.filter(c=>c.init?.method==='POST').length,0);
+});
+
+test('only providers with explicit PNG control are listed and used',async t=>{
+  for(const formats of [undefined,['webp'],['webp','png']]){
+    await t.test(JSON.stringify(formats)||'no format control',async t=>{
+      const supported_parameters={...capabilities,output_format:formats?{type:'enum',values:formats}:undefined};
+      const {base,post,calls}=await start(t,{endpoints:[{provider_tag:'format-provider',supported_parameters}]});
+      const supported=Boolean(formats?.includes('png'));
+      assert.equal((await (await fetch(base+'/api/ai/models')).json()).models.length,supported?1:0);
+      assert.equal((await post({model:'test/fabric',resolution:'2K',image})).status,supported?200:400);
+      const generations=calls.filter(c=>c.init?.method==='POST');
+      assert.equal(generations.length,supported?1:0);
+      if(supported)assert.equal(JSON.parse(generations[0].init.body).output_format,'png');
+    });
+  }
+});
+
+test('catalog resolutions and generation use the same PNG-capable endpoint',async t=>{
+  const {base,post,calls}=await start(t,{endpoints:[
+    {provider_tag:'webp-only',supported_parameters:{...capabilities,output_format:{type:'enum',values:['webp']}}},
+    {provider_tag:'png-2k',supported_parameters:{...capabilities,resolution:{type:'enum',values:['2K']}}},
+  ]});
+  const catalog=await (await fetch(base+'/api/ai/models')).json();
+  assert.deepEqual(catalog.models[0].resolutions,['2K']);
+  assert.equal((await post({model:'test/fabric',resolution:'4K',image})).status,400);
+  assert.equal((await post({model:'test/fabric',resolution:'2K',image})).status,200);
+  const generations=calls.filter(c=>c.init?.method==='POST');
+  assert.equal(generations.length,1);
+  assert.deepEqual(JSON.parse(generations[0].init.body).provider.only,['png-2k']);
+});
+
+test('non-PNG output is rejected without conversion or paid retry',async t=>{
+  const {post,calls}=await start(t,{generation:()=>json({data:[{b64_json:Buffer.from('RIFF0000WEBP','ascii').toString('base64'),media_type:'image/png'}]})});
+  const response=await post({model:'test/fabric',resolution:'2K',image});
+  assert.equal(response.status,502);
+  assert.match((await response.json()).error,/PNG/);
+  assert.equal(calls.filter(c=>c.init?.method==='POST').length,1);
 });
 
 test('cross-origin calls and server source downloads are blocked',async t=>{
@@ -122,4 +160,42 @@ test('non-raster provider output is rejected instead of being embedded in the UI
   assert.equal(response.status,502);
   const body=await response.json();
   assert.equal(body.image,undefined);
+});
+
+test('price preview includes the uploaded reference and chosen output tier without generating',async t=>{
+  const {base,calls}=await start(t,{endpoints:[{provider_tag:'priced',supported_parameters:capabilities,pricing:[
+    {billable:'input_reference',unit:'image',cost_usd:0.2},
+    {billable:'output_image',unit:'image',cost_usd:0.15,variant:'2k'},
+    {billable:'output_image',unit:'image',cost_usd:0.33,variant:'4k'},
+    {billable:'input_font',unit:'image',cost_usd:0.03},
+  ]}]});
+  const response=await fetch(base+'/api/ai/pricing?model=test/fabric&resolution=4K');
+  assert.equal(response.status,200);
+  const body=await response.json();
+  assert.equal(body.estimate.kind,'fixed');
+  assert.equal(body.estimate.min,0.53);
+  assert.equal(body.provider,'priced');
+  assert.equal(calls.filter(c=>c.init?.method==='POST').length,0);
+});
+
+test('token pricing is marked variable rather than quoted as per-image cost',async t=>{
+  const {base}=await start(t,{endpoints:[{provider_tag:'tokens',supported_parameters:capabilities,pricing:[{billable:'output_image',unit:'token',cost_usd:0.00006}]}]});
+  const body=await (await fetch(base+'/api/ai/pricing?model=test/fabric&resolution=2K')).json();
+  assert.equal(body.estimate.kind,'variable');
+  assert.equal(body.pricing[0].unit,'token');
+  assert.equal(body.estimate.min,undefined);
+});
+
+test('unknown 4K pricing is not silently replaced by the base or 2K tariff',async t=>{
+  const {base}=await start(t,{endpoints:[{provider_tag:'partial',supported_parameters:capabilities,pricing:[{billable:'output_image',unit:'image',cost_usd:0.02},{billable:'output_image',unit:'image',cost_usd:0.04,variant:'2k'}]}]});
+  const body=await (await fetch(base+'/api/ai/pricing?model=test/fabric&resolution=4K')).json();
+  assert.equal(body.estimate.kind,'unknown');
+});
+
+test('quality-dependent prices produce a range including input cost',async t=>{
+  const {base}=await start(t,{endpoints:[{provider_tag:'quality',supported_parameters:capabilities,pricing:[{billable:'input_image',unit:'image',cost_usd:0.01},{billable:'output_image',unit:'image',cost_usd:0.06,variant:'low_2k'},{billable:'output_image',unit:'image',cost_usd:0.08,variant:'medium_2k'}]}]});
+  const body=await (await fetch(base+'/api/ai/pricing?model=test/fabric&resolution=2K')).json();
+  assert.equal(body.estimate.kind,'range');
+  assert.equal(body.estimate.min,0.07);
+  assert.equal(body.estimate.max,0.09);
 });

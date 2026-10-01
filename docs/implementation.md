@@ -1,5 +1,7 @@
 # Raz / cores
 
+> Registro histórico da implementação inicial. Consulte o [README](../README.md) e a [arquitetura atual](arquitetura.md) para a versão presente.
+
 Aplicação local estática para carregar uma fotografia de tecido, neutralizar a cor original e aplicar um HEX, preservando variações de luminosidade e transparência. Sem sliders. Upload PNG/JPEG/WebP por botão e drop. Exemplo inicial fornecido pelo usuário. Exportação PNG da cor aplicada, em resolução original. Fotos com fundo serão recoloridas por inteiro; não há segmentação nesta versão.
 
 Design: referência visual gerada em design/concept.png; fundo #F7F7F3, painel branco, tipografia editorial serifada nos títulos, controles sans-serif, ação #DDF064. Original, base neutra, cor aplicada e comparação lado a lado; ajuste de zoom por botões.
